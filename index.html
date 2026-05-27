@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✈️ 7日遊旅遊費用自動存檔計算機</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        h1, h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 10px;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        p.tip {
+            color: #666; 
+            font-size: 14px;
+            background: #fff9db;
+            padding: 8px 12px;
+            border-left: 4px solid #f59f00;
+            border-radius: 4px;
+        }
+        input, select {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            font-size: 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #2980b9; }
+        button.btn-danger { background-color: #e74c3c; }
+        button.btn-danger:hover { background-color: #c0392b; }
+        button.btn-success { background-color: #2ecc71; width: 100%; padding: 15px; font-size: 18px; margin-top: 15px;}
+        button.btn-success:hover { background-color: #27ae60; }
+        button.btn-warning { background-color: #f39c12; color: white; margin-left: 10px;}
+        button.btn-warning:hover { background-color: #d35400; }
+        
+        .member-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .member-row input { flex: 1; }
+
+        .expense-row {
+            display: grid;
+            grid-template-columns: 140px 2fr 1fr 1.2fr auto;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        
+        @media (max-width: 600px) {
+            .expense-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .result-box {
+            background-color: #e8f4fd;
+            border-left: 5px solid #3498db;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .positive { color: #27ae60; font-weight: bold; }
+        .negative { color: #c0392b; font-weight: bold; }
+        .save-status {
+            color: #27ae60;
+            font-size: 14px;
+            font-weight: bold;
+            margin-left: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 style="text-align: center;">✈️ 旅遊費用分帳計算機 (含日期與自動存檔)</h1>
+    <div style="text-align: right; margin-bottom: 20px;">
+        <span id="save-msg" class="save-status">💾 資料已自動儲存</span>
+        <button type="button" class="btn-warning" onclick="clearAllData()">⚠️ 清空所有資料重置</button>
+    </div>
+    
+    <div class="section">
+        <h2>1. 朋友成員與公費設定</h2>
+        <p class="tip">請輸入成員名字，以及每個人預繳的公費（若無公費填 0）。修改會自動存檔。</p>
+        <div id="member-container">
+            </div>
+        <button type="button" onclick="addMemberRow('', 0)">➕ 新增成員</button>
+    </div>
+
+    <div class="section">
+        <h2>2. 旅遊支出明細</h2>
+        <p class="tip">記錄每一天的開銷。您可以自由選擇日期、輸入項目與金額，並選擇是由公費還是某人墊付。</p>
+        <div id="expense-container">
+            </div>
+        <button type="button" onclick="addExpenseRow('', '', 0, '公費')">➕ 新增支出項目</button>
+    </div>
+
+    <button type="button" class="btn-success" onclick="calculateExpenses()">📊 開始計算分帳結果</button>
+
+    <div id="result-section" class="section" style="display:none; margin-top: 30px;">
+        <h2>📝 計算結果明細</h2>
+        
+        <div class="summary-grid">
+            <div>💰 <b>預收公費總額：</b> <span id="total-pool">0</span> 元</div>
+            <div>💸 <b>公費已支出：</b> <span id="pool-spent">0</span> 元</div>
+            <div>🏦 <b>公費目前剩餘：</b> <span id="pool-remain">0</span> 元</div>
+            <div>🔥 <b>旅程總花費：</b> <span id="total-trip-cost">0</span> 元</div>
+            <div>👤 <b>每人應分攤：</b> <span id="per-person-share">0</span> 元</div>
+        </div>
+
+        <h3>💡 最終結算（每人該補錢或退錢）</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>姓名</th>
+                    <th>當初已繳公費</th>
+                    <th>個人先行墊付</th>
+                    <th>應分攤總額</th>
+                    <th>最終結算結果</th>
+                </tr>
+            </thead>
+            <tbody id="result-table-body">
+                </tbody>
+        </table>
+        
+        <div class="result-box">
+            <h4>💡 結算說明：</h4>
+            <ul>
+                <li><span class="negative">應補繳 XXX 元</span>：代表你的總付出（預繳公費+個人墊付）少於平均應攤，請把這筆錢補出來。</li>
+                <li><span class="positive">可領回 / 退回 XXX 元</span>：代表你代墊太多或公費收太多，可以從大家補繳的錢或剩餘公費中領回。</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 頁面載入時：讀取存檔資料
+    window.onload = function() {
+        loadData();
+        // 監聽整個區塊的輸入事件，只要有變動就自動存檔
+        document.getElementById('member-container').addEventListener('input', autoSave);
+        document.getElementById('expense-container').addEventListener('input', autoSave);
+        document.getElementById('expense-container').addEventListener('change', autoSave);
+    };
+
+    function showSaveStatus() {
+        const msg = document.getElementById('save-msg');
+        msg.style.display = 'inline';
+        setTimeout(() => { msg.style.display = 'none'; }, 1200);
+    }
+
+    // 取得所有成員名單
+    function getMemberList() {
+        const members = [];
+        document.querySelectorAll('#member-container .member-row').forEach(row => {
+            const name = row.querySelectorAll('input')[0].value.trim();
+            if(name) members.push(name);
+        });
+        return members;
+    }
+
+    // 更新所有消費項目的付款人選單
+    function updatePayerOptions() {
+        const members = getMemberList();
+        document.querySelectorAll('.payer-select').forEach(select => {
+            const currentValue = select.value;
+            select.innerHTML = '<option value="公費">👛 公費支付</option>';
+            members.forEach(member => {
+                const opt = document.createElement('option');
+                opt.value = member;
+                opt.textContent = `👤 ${member} 代墊`;
+                select.appendChild(opt);
+            });
+            if (members.includes(currentValue) || currentValue === '公費') {
+                select.value = currentValue;
+            }
+        });
+    }
+
+    // 新增成員 UI
+    function addMemberRow(name = '', pool = 0) {
+        const container = document.getElementById('member-container');
+        const div = document.createElement('div');
+        div.className = 'member-row';
+        div.innerHTML = `
+            <input type="text" placeholder="成員姓名" value="${name}" class="m-name">
+            <input type="number" placeholder="已繳公費金額" value="${pool}" min="0" class="m-pool">
+            <button type="button" class="btn-danger" onclick="this.parentElement.remove(); updatePayerOptions(); autoSave();">刪除</button>
+        `;
+        container.appendChild(div);
+        
+        // 綁定輸入時即時更新下拉選單
+        div.querySelector('.m-name').addEventListener('input', () => {
+            updatePayerOptions();
+            autoSave();
+        });
+        updatePayerOptions();
+    }
+
+    // 新增支出 UI (含日期)
+    function addExpenseRow(date = '', item = '', cost = 0, payer = '公費') {
+        const container = document.getElementById('expense-container');
+        const div = document.createElement('div');
+        div.className = 'expense-row';
+        div.innerHTML = `
+            <input type="date" value="${date}" class="e-date">
+            <input type="text" placeholder="項目 (如: 晚餐、車資)" value="${item}" class="e-item">
+            <input type="number" placeholder="金額" value="${cost}" min="0" class="e-cost">
+            <select class="payer-select e-payer">
+                <option value="公費">👛 公費支付</option>
+            </select>
+            <button type="button" class="btn-danger" onclick="this.parentElement.remove(); autoSave();">刪除</button>
+        `;
+        container.appendChild(div);
+        updatePayerOptions();
+        div.querySelector('.e-payer').value = payer;
+    }
+
+    // 自動存檔功能 (儲存至瀏覽器 LocalStorage)
+    function autoSave() {
+        // 1. 儲存成員
+        const membersData = [];
+        document.querySelectorAll('#member-container .member-row').forEach(row => {
+            const name = row.querySelector('.m-name').value.trim();
+            const pool = row.querySelector('.m-pool').value;
+            if(name) membersData.push({ name, pool: parseFloat(pool) || 0 });
+        });
+
+        // 2. 儲存花費
+        const expensesData = [];
+        document.querySelectorAll('#expense-container .expense-row').forEach(row => {
+            const date = row.querySelector('.e-date').value;
+            const item = row.querySelector('.e-item').value;
+            const cost = row.querySelector('.e-cost').value;
+            const payer = row.querySelector('.e-payer').value;
+            expensesData.push({ date, item, cost: parseFloat(cost) || 0, payer });
+        });
+
+        localStorage.setItem('travel_members', JSON.stringify(membersData));
+        localStorage.setItem('travel_expenses', JSON.stringify(expensesData));
+        showSaveStatus();
+    }
+
+    // 讀取存檔功能
+    function loadData() {
+        const storedMembers = localStorage.getItem('travel_members');
+        const storedExpenses = localStorage.getItem('travel_expenses');
+
+        if (storedMembers) {
+            const members = JSON.parse(storedMembers);
+            members.forEach(m => addMemberRow(m.name, m.pool));
+        } else {
+            // 若完全沒資料，預設給兩個初始欄位
+            addMemberRow('成員A', 3000);
+            addMemberRow('成員B', 3000);
+        }
+
+        if (storedExpenses) {
+            const expenses = JSON.parse(storedExpenses);
+            expenses.forEach(e => addExpenseRow(e.date, e.item, e.cost, e.payer));
+        } else {
+            // 預設給一個今日日期的初始欄位
+            const today = new Date().toISOString().split('T')[0];
+            addExpenseRow(today, '第一天晚餐', 1200, '公費');
+        }
+        updatePayerOptions();
+    }
+
+    // 清空重置
+    function clearAllData() {
+        if(confirm('確定要清空所有的朋友名單與全部花費紀錄嗎？此動作無法復原喔！')) {
+            localStorage.removeItem('travel_members');
+            localStorage.removeItem('travel_expenses');
+            document.getElementById('member-container').innerHTML = '';
+            document.getElementById('expense-container').innerHTML = '';
+            document.getElementById('result-section').style.display = 'none';
+            addMemberRow('', 0);
+            addExpenseRow('', '', 0, '公費');
+            alert('已成功清空！可以重新開始記帳了。');
+        }
+    }
+
+    // 核心結算計算
+    function calculateExpenses() {
+        const memberRows = document.querySelectorAll('#member-container .member-row');
+        const expenseRows = document.querySelectorAll('#expense-container .expense-row');
+        
+        let members = [];
+        let totalInitialPool = 0;
+        
+        memberRows.forEach(row => {
+            const name = row.querySelector('.m-name').value.trim();
+            const poolPaid = parseFloat(row.querySelector('.m-pool').value) || 0;
+            if (name) {
+                members.push({ name: name, poolPaid: poolPaid, ownSpent: 0, finalBalance: 0 });
+                totalInitialPool += poolPaid;
+            }
+        });
+
+        if (members.length === 0) {
+            alert('請至少輸入一位成員！');
+            return;
+        }
+
+        let poolSpent = 0;
+        let totalPersonalSpent = 0;
+
+        expenseRows.forEach(row => {
+            const cost = parseFloat(row.querySelector('.e-cost').value) || 0;
+            const payer = row.querySelector('.e-payer').value;
+
+            if (payer === '公費') {
+                poolSpent += cost;
+            } else {
+                const member = members.find(m => m.name === payer);
+                if (member) {
+                    member.ownSpent += cost;
+                    totalPersonalSpent += cost;
+                }
+            }
+        });
+
+        const totalTripCost = poolSpent + totalPersonalSpent;
+        const perPersonShare = totalTripCost / members.length;
+        const poolRemain = totalInitialPool - poolSpent;
+
+        const tbody = document.getElementById('result-table-body');
+        tbody.innerHTML = '';
+
+        members.forEach(m => {
+            const totalPaid = m.poolPaid + m.ownSpent;
+            const balance = totalPaid - perPersonShare;
+
+            let balanceText = '';
+            if (balance < 0) {
+                balanceText = `<span class="negative">🔻 應補繳 ${Math.abs(Math.round(balance))} 元</span>`;
+            } else if (balance > 0) {
+                balanceText = `<span class="positive">🎉 可退回 ${Math.round(balance)} 元</span>`;
+            } else {
+                balanceText = `<span>🤝 0 元 (平手)</span>`;
+            }
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><b>${m.name}</b></td>
+                <td>${m.poolPaid} 元</td>
+                <td>${m.ownSpent} 元</td>
+                <td>${Math.round(perPersonShare)} 元</td>
+                <td>${balanceText}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        document.getElementById('total-pool').textContent = Math.round(totalInitialPool);
+        document.getElementById('pool-spent').textContent = Math.round(poolSpent);
+        document.getElementById('pool-remain').textContent = Math.round(poolRemain);
+        document.getElementById('total-trip-cost').textContent = Math.round(totalTripCost);
+        document.getElementById('per-person-share').textContent = Math.round(perPersonShare);
+
+        document.getElementById('result-section').style.display = 'block';
+        document.getElementById('result-section').scrollIntoView({ behavior: 'smooth' });
+    }
+</script>
+
+</body>
+</html>

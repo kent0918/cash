@@ -333,15 +333,18 @@
         document.getElementById('member-container').innerHTML = '';
         document.getElementById('expense-container').innerHTML = '';
         
-        if(data.rate) {
+        // 【防呆修正】如果雲端舊資料沒有 rate 欄位，就給予預設值 0.92，避免程式壞掉
+        if(data && data.rate !== undefined) {
             document.getElementById('thb-rate').value = data.rate;
+        } else {
+            document.getElementById('thb-rate').value = 0.92;
         }
 
-        if(data.members && data.members.length > 0) {
+        if(data && data.members && data.members.length > 0) {
             data.members.forEach(m => addMemberRow(m.name, m.pool));
         } else { addMemberRow('', 0); }
         
-        if(data.expenses && data.expenses.length > 0) {
+        if(data && data.expenses && data.expenses.length > 0) {
             data.expenses.forEach(e => addExpenseRow(e.date, e.item, e.cost, e.currency || 'THB', e.payer));
         } else { addExpenseRow('', '', 0, 'THB', '公費'); }
         updatePayerOptions();
@@ -426,7 +429,7 @@
             const poolPaid = parseFloat(row.querySelector('.m-pool').value) || 0;
             if (name) {
                 members.push({ name: name, poolPaid: poolPaid, ownSpent: 0, finalBalance: 0 });
-                totalInitialPool += poolPaid; // 本身就是 TWD
+                totalInitialPool += poolPaid;
             }
         });
 
@@ -438,7 +441,6 @@
             const currency = row.querySelector('.e-currency').value;
             const payer = row.querySelector('.e-payer').value;
 
-            // 如果是泰銖，自動乘以匯率轉換為台幣
             if (currency === 'THB') {
                 cost = cost * rate;
             }
@@ -467,3 +469,18 @@
             let balanceText = (balance < 0) ? `<span class="negative">🔻 應補繳 ${Math.abs(Math.round(balance))} 元</span>` : (balance > 0) ? `<span class="positive">🎉 可退回 ${Math.round(balance)} 元</span>` : `<span>🤝 0 元 (平手)</span>`;
             const tr = document.createElement('tr');
             tr.innerHTML = `<td><b>${m.name}</b></td><td>${m.poolPaid} 元</td><td>${Math.round(m.ownSpent)} 元</td><td>${Math.round(perPersonShare)} 元</td><td>${balanceText}</td>`;
+            tbody.appendChild(tr);
+        });
+
+        document.getElementById('total-pool').textContent = Math.round(totalInitialPool);
+        document.getElementById('pool-spent').textContent = Math.round(poolSpent);
+        document.getElementById('pool-remain').textContent = Math.round(poolRemain);
+        document.getElementById('total-trip-cost').textContent = Math.round(totalTripCost);
+        document.getElementById('per-person-share').textContent = Math.round(perPersonShare);
+        document.getElementById('result-section').style.display = 'block';
+        document.getElementById('result-section').scrollIntoView({ behavior: 'smooth' });
+    }
+</script>
+
+</body>
+</html>

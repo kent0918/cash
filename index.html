@@ -131,18 +131,18 @@
     <h1 style="text-align: center;">✈️ 旅遊費用分帳計算機 (GitHub Gist 雲端連動版)</h1>
     
     <div class="config-box">
-        <h3>🔑 雲端連動設定 (輸入後會自動記住)</h3>
+        <h3>🔑 雲端連動設定 (已鎖定金鑰自動連線)</h3>
         <div class="config-grid">
-            <input type="password" id="gh-token" placeholder="貼上您的 GitHub Token (classic)">
-            <input type="text" id="gh-gist-id" placeholder="貼上您的 Gist ID (網址最後那一串)">
+            <input type="password" id="gh-token" placeholder="GitHub Token">
+            <input type="text" id="gh-gist-id" placeholder="Gist ID">
         </div>
         <button type="button" onclick="loadFromGist()">🔄 手動同步/重新載入</button>
-        <span id="save-msg" class="save-status">⚙️ 首次使用請先填寫上方設定</span>
+        <span id="save-msg" class="save-status">🔄 正在連線雲端空間...</span>
     </div>
     
     <div class="section">
         <h2>1. 朋友成員與公費設定</h2>
-        <p class="tip">請輸入成員名字與預繳公費。打字後，系統會自動在背景存檔到你的 Gist 裡！</p>
+        <p class="tip">請輸入成員名字與預繳公費。停止打字 1.5 秒後，系統會自動儲存到雲端！</p>
         <div id="member-container"></div>
         <button type="button" onclick="addMemberRow('', 0)">➕ 新增成員</button>
     </div>
@@ -186,17 +186,18 @@
     let isDataLoading = false;
 
     window.onload = async function() {
-        // 在 window.onload 的最開頭，直接把你的密鑰寫進去鎖定：
-document.getElementById('gh-token').value = "這裡填入你那串ghp_開頭的Token";
-document.getElementById('gh-gist-id').value = "08e7ca5a742bc7f86520879af8231";
-        // 從本機讀取之前存好的 Token 和 Gist ID
-        document.getElementById('gh-token').value = localStorage.getItem('travel_gh_token') || '';
-        document.getElementById('gh-gist-id').value = localStorage.getItem('travel_gist_id') || '';
+        // === 🛠️ 請在此處填入你正確的密鑰資訊 ===
+        const myToken = "這裡填入你那串ghp_開頭的Token"; 
+        const myGistId = "08e7ca5a742bc7f86520879af8231";
+        // =======================================
 
-        if (localStorage.getItem('travel_gh_token') && localStorage.getItem('travel_gist_id')) {
+        document.getElementById('gh-token').value = myToken;
+        document.getElementById('gh-gist-id').value = myGistId;
+
+        // 優先使用填寫的密鑰進行初次同步
+        if (myToken && myGistId) {
             await loadFromGist();
         } else {
-            // 沒有的話載入一組預設範例
             renderData({
                 members: [{ name: '成員A', pool: 3000 }, { name: '成員B', pool: 3000 }],
                 expenses: [{ date: new Date().toISOString().split('T')[0], item: '第一天晚餐', cost: 1200, payer: '公費' }]
@@ -215,24 +216,20 @@ document.getElementById('gh-gist-id').value = "08e7ca5a742bc7f86520879af8231";
         const gistId = document.getElementById('gh-gist-id').value.trim();
         
         if (!token || !gistId) {
-            alert("請先輸入 GitHub Token 和 Gist ID！");
+            alert("請檢查 GitHub Token 和 Gist ID 是否填寫！");
             return;
         }
-
-        // 自動記錄，下次不用重新輸入
-        localStorage.setItem('travel_gh_token', token);
-        localStorage.setItem('travel_gist_id', gistId);
 
         isDataLoading = true;
         updateStatus("🔄 正在從 GitHub 雲端下載最新帳目...");
 
         try {
             const response = await fetch(`https://api.github.com/gists/${gistId}`, {
-                headers: { "Authorization": `token ${token}` }
+                headers: { "Authorization": `token ${token}` },
+                cache: "no-store"
             });
             const gistData = await response.json();
             
-            // 讀取 gist 裡面的 data.json
             if (gistData.files && gistData.files["data.json"]) {
                 const content = JSON.parse(gistData.files["data.json"].content);
                 renderData(content);
@@ -246,13 +243,13 @@ document.getElementById('gh-gist-id').value = "08e7ca5a742bc7f86520879af8231";
         isDataLoading = false;
     }
 
-    // 防抖動，避免每打一個字就上傳一次網路
+    // 防抖動調整為 1.5 秒，打完字停頓一下才會觸發，防止頻繁連線失敗
     let saveTimeout;
     function debounceAutoSave() {
         if(isDataLoading) return;
         updateStatus("✍️ 偵測到修改，暫存中...");
         clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(saveToGist, 1000);
+        saveTimeout = setTimeout(saveToGist, 1500);
     }
 
     // 上傳到 GitHub Gist
@@ -260,7 +257,7 @@ document.getElementById('gh-gist-id').value = "08e7ca5a742bc7f86520879af8231";
         const token = document.getElementById('gh-token').value.trim();
         const gistId = document.getElementById('gh-gist-id').value.trim();
         
-        if (!token || !gistId) return; // 沒設定就不觸發雲端
+        if (!token || !gistId || isDataLoading) return;
 
         updateStatus("📤 正在自動同步到 GitHub 雲端...");
 
@@ -289,7 +286,7 @@ document.getElementById('gh-gist-id').value = "08e7ca5a742bc7f86520879af8231";
         };
 
         try {
-            await fetch(`https://api.github.com/gists/${gistId}`, {
+            const res = await fetch(`https://api.github.com/gists/${gistId}`, {
                 method: "PATCH",
                 headers: {
                     "Authorization": `token ${token}`,
@@ -297,9 +294,13 @@ document.getElementById('gh-gist-id').value = "08e7ca5a742bc7f86520879af8231";
                 },
                 body: JSON.stringify(bodyData)
             });
-            updateStatus("☁️ 雲端已同步 (最新)");
+            if(res.ok) {
+                updateStatus("☁️ 雲端已同步 (最新)");
+            } else {
+                updateStatus("❌ 自動同步失敗 (權限錯誤)");
+            }
         } catch (e) {
-            updateStatus("❌ 自動同步失敗");
+            updateStatus("❌ 自動同步失敗 (網路錯誤)");
         }
     }
 
@@ -381,7 +382,6 @@ document.getElementById('gh-gist-id').value = "08e7ca5a742bc7f86520879af8231";
     }
 
     function calculateExpenses() {
-        saveToGist();
         const memberRows = document.querySelectorAll('#member-container .member-row');
         const expenseRows = document.querySelectorAll('#expense-container .expense-row');
         let members = []; let totalInitialPool = 0;

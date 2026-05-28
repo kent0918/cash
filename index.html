@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>✈️ 7日遊旅遊費用【雲端自動帶入版】</title>
+    <title>✈️ 7日遊旅遊費用【雲端自動帶入跨幣別版】</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -13,7 +13,7 @@
             padding: 20px;
         }
         .container {
-            max-width: 900px;
+            max-width: 950px;
             margin: 0 auto;
             background: white;
             padding: 30px;
@@ -49,6 +49,17 @@
             gap: 10px;
             margin-bottom: 10px;
         }
+        .rate-box {
+            background: #eaffea;
+            border: 1px solid #b7eb8f;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
         input, select {
             padding: 10px;
             border: 1px solid #ccc;
@@ -71,7 +82,7 @@
         button.btn-danger:hover { background-color: #c0392b; }
         button.btn-success { background-color: #2ecc71; width: 100%; padding: 15px; font-size: 18px; margin-top: 15px;}
         button.btn-success:hover { background-color: #27ae60; }
-        
+         
         .member-row {
             display: flex;
             gap: 10px;
@@ -81,13 +92,13 @@
 
         .expense-row {
             display: grid;
-            grid-template-columns: 140px 2fr 1fr 1.2fr auto;
+            grid-template-columns: 130px 1.8fr 0.8fr 100px 1.2fr auto;
             gap: 10px;
             margin-bottom: 10px;
             align-items: center;
         }
-        
-        @media (max-width: 600px) {
+         
+        @media (max-width: 768px) {
             .expense-row { grid-template-columns: 1fr; }
         }
 
@@ -128,10 +139,10 @@
 <body>
 
 <div class="container">
-    <h1 style="text-align: center;">✈️ 旅遊費用分帳計算機 (雲端連動免Key版)</h1>
+    <h1 style="text-align: center;">✈️ 泰國旅遊費用分帳計算機 (跨幣別自動換算版)</h1>
     
     <div class="config-box">
-        <h3>🔑 雲端連動設定 (已透過網址參數自動帶入)</h3>
+        <h3>🔑 雲端連動設定</h3>
         <div class="config-grid">
             <input type="password" id="gh-token" placeholder="GitHub Token 將自動帶入...">
             <input type="text" id="gh-gist-id" placeholder="Gist ID 將自動帶入...">
@@ -139,25 +150,34 @@
         <button type="button" onclick="loadFromGist()">🔄 手動同步/重新載入</button>
         <span id="save-msg" class="save-status">🔄 正在載入網址設定...</span>
     </div>
+
+    <div class="rate-box">
+        <h3>📈 今日匯率設定 (TWD / THB)</h3>
+        <div>
+            <label for="thb-rate">1 泰銖 (THB) = </label>
+            <input type="number" id="thb-rate" value="0.92" step="0.001" style="width: 90px; text-align: center;"> 元台幣 (TWD)
+        </div>
+        <span style="color: #666; font-size: 13px;">* 範例：若台幣比泰銖大一點點，通常落在 0.90 ~ 0.95 之間。所有泰銖開銷將以此匯率自動換算為台幣結算。</span>
+    </div>
     
     <div class="section">
         <h2>1. 朋友成員與公費設定</h2>
-        <p class="tip">請輸入成員名字與預繳公費。停止打字 1.5 秒後，系統會自動儲存到雲端！</p>
+        <p class="tip">請輸入成員名字與預繳公費（<strong>統一以台幣 TWD 輸入</strong>）。停止打字 1.5 秒後自動儲存！</p>
         <div id="member-container"></div>
         <button type="button" onclick="addMemberRow('', 0)">➕ 新增成員</button>
     </div>
 
     <div class="section">
         <h2>2. 7日旅遊支出明細</h2>
-        <p class="tip">記錄每一天的開銷。您可以自由選擇日期、輸入項目與金額，並選擇是由公費還是某人墊付。</p>
+        <p class="tip">記錄開銷時，可自由選擇該筆花費是 🇹🇭 泰銖 還是 🇹🇼 台幣，系統會自動轉換！</p>
         <div id="expense-container"></div>
-        <button type="button" onclick="addExpenseRow('', '', 0, '公費')">➕ 新增支出項目</button>
+        <button type="button" onclick="addExpenseRow('', '', 0, 'THB', '公費')">➕ 新增支出項目</button>
     </div>
 
     <button type="button" class="btn-success" onclick="calculateExpenses()">📊 開始計算分帳結果</button>
 
     <div id="result-section" class="section" style="display:none; margin-top: 30px;">
-        <h2>📝 計算結果明細</h2>
+        <h2>📝 計算結果明細 (已統一換算為台幣 TWD)</h2>
         <div class="summary-grid">
             <div>💰 <b>預收公費總額：</b> <span id="total-pool">0</span> 元</div>
             <div>💸 <b>公費已支出：</b> <span id="pool-spent">0</span> 元</div>
@@ -166,13 +186,13 @@
             <div>👤 <b>每人應分攤：</b> <span id="per-person-share">0</span> 元</div>
         </div>
 
-        <h3>💡 最終結算（每人該補錢或退錢）</h3>
+        <h3>💡 最終結算（每人該補錢或退錢 - 台幣）</h3>
         <table>
             <thead>
                 <tr>
                     <th>姓名</th>
                     <th>當初已繳公費</th>
-                    <th>個人先行墊付</th>
+                    <th>個人先行墊付 (折合台幣)</th>
                     <th>應分攤總額</th>
                     <th>最終結算結果</th>
                 </tr>
@@ -186,12 +206,10 @@
     let isDataLoading = false;
 
     window.onload = async function() {
-        // 從網址列自動分析讀取 ?token=xxxx&id=xxxx
         const urlParams = new URLSearchParams(window.location.search);
         const urlToken = urlParams.get('token');
         const urlGistId = urlParams.get('id');
 
-        // 如果網址有帶，就用網址的；如果網址沒帶，就看本機以前有沒有記住過
         const token = urlToken || localStorage.getItem('travel_gh_token') || '';
         const gistId = urlGistId || localStorage.getItem('travel_gist_id') || '';
 
@@ -199,19 +217,20 @@
         document.getElementById('gh-gist-id').value = gistId;
 
         if (token && gistId) {
-            // 如果是從網址第一次進來，幫忙記在 localStorage，以後就算把網址後面的字刪掉也打得開
             localStorage.setItem('travel_gh_token', token);
             localStorage.setItem('travel_gist_id', gistId);
             await loadFromGist();
         } else {
             renderData({
+                rate: 0.92,
                 members: [{ name: '成員A', pool: 3000 }, { name: '成員B', pool: 3000 }],
-                expenses: [{ date: new Date().toISOString().split('T')[0], item: '第一天晚餐', cost: 1200, payer: '公費' }]
+                expenses: [{ date: new Date().toISOString().split('T')[0], item: '曼谷晚餐', cost: 1200, currency: 'THB', payer: '公費' }]
             });
             updateStatus("⚙️ 請使用包含金鑰的專屬網址開啟，或手動填入上方欄位。");
         }
 
         // 監聽變動自動存檔
+        document.getElementById('thb-rate').addEventListener('input', debounceAutoSave);
         document.getElementById('member-container').addEventListener('input', debounceAutoSave);
         document.getElementById('expense-container').addEventListener('input', debounceAutoSave);
         document.getElementById('expense-container').addEventListener('change', debounceAutoSave);
@@ -264,6 +283,8 @@
 
         updateStatus("📤 正在自動同步到 GitHub 雲端...");
 
+        const rate = parseFloat(document.getElementById('thb-rate').value) || 0.92;
+
         const membersData = [];
         document.querySelectorAll('#member-container .member-row').forEach(row => {
             const name = row.querySelector('.m-name').value.trim();
@@ -276,14 +297,15 @@
             const date = row.querySelector('.e-date').value;
             const item = row.querySelector('.e-item').value;
             const cost = row.querySelector('.e-cost').value;
+            const currency = row.querySelector('.e-currency').value;
             const payer = row.querySelector('.e-payer').value;
-            expensesData.push({ date, item, cost: parseFloat(cost) || 0, payer });
+            expensesData.push({ date, item, cost: parseFloat(cost) || 0, currency, payer });
         });
 
         const bodyData = {
             files: {
                 "data.json": {
-                    content: JSON.stringify({ members: membersData, expenses: expensesData }, null, 2)
+                    content: JSON.stringify({ rate, members: membersData, expenses: expensesData }, null, 2)
                 }
             }
         };
@@ -311,13 +333,17 @@
         document.getElementById('member-container').innerHTML = '';
         document.getElementById('expense-container').innerHTML = '';
         
+        if(data.rate) {
+            document.getElementById('thb-rate').value = data.rate;
+        }
+
         if(data.members && data.members.length > 0) {
             data.members.forEach(m => addMemberRow(m.name, m.pool));
         } else { addMemberRow('', 0); }
         
         if(data.expenses && data.expenses.length > 0) {
-            data.expenses.forEach(e => addExpenseRow(e.date, e.item, e.cost, e.payer));
-        } else { addExpenseRow('', '', 0, '公費'); }
+            data.expenses.forEach(e => addExpenseRow(e.date, e.item, e.cost, e.currency || 'THB', e.payer));
+        } else { addExpenseRow('', '', 0, 'THB', '公費'); }
         updatePayerOptions();
     }
 
@@ -355,7 +381,7 @@
         div.className = 'member-row';
         div.innerHTML = `
             <input type="text" placeholder="成員姓名" value="${name}" class="m-name">
-            <input type="number" placeholder="已繳公費金額" value="${pool}" min="0" class="m-pool">
+            <input type="number" placeholder="已繳公費 (TWD)" value="${pool}" min="0" class="m-pool">
             <button type="button" class="btn-danger" onclick="this.parentElement.remove(); updatePayerOptions(); debounceAutoSave();">刪除</button>
         `;
         container.appendChild(div);
@@ -366,14 +392,18 @@
         updatePayerOptions();
     }
 
-    function addExpenseRow(date = '', item = '', cost = 0, payer = '公費') {
+    function addExpenseRow(date = '', item = '', cost = 0, currency = 'THB', payer = '公費') {
         const container = document.getElementById('expense-container');
         const div = document.createElement('div');
         div.className = 'expense-row';
         div.innerHTML = `
             <input type="date" value="${date}" class="e-date">
-            <input type="text" placeholder="項目 (如: 晚餐、車資)" value="${item}" class="e-item">
+            <input type="text" placeholder="項目 (如: 泰式按摩、建興酒家)" value="${item}" class="e-item">
             <input type="number" placeholder="金額" value="${cost}" min="0" class="e-cost">
+            <select class="e-currency">
+                <option value="THB" ${currency === 'THB' ? 'selected' : ''}>🇹🇭 THB</option>
+                <option value="TWD" ${currency === 'TWD' ? 'selected' : ''}>🇹🇼 TWD</option>
+            </select>
             <select class="payer-select e-payer">
                 <option value="公費">👛 公費支付</option>
             </select>
@@ -387,6 +417,8 @@
     function calculateExpenses() {
         const memberRows = document.querySelectorAll('#member-container .member-row');
         const expenseRows = document.querySelectorAll('#expense-container .expense-row');
+        const rate = parseFloat(document.getElementById('thb-rate').value) || 0.92;
+
         let members = []; let totalInitialPool = 0;
         
         memberRows.forEach(row => {
@@ -394,7 +426,7 @@
             const poolPaid = parseFloat(row.querySelector('.m-pool').value) || 0;
             if (name) {
                 members.push({ name: name, poolPaid: poolPaid, ownSpent: 0, finalBalance: 0 });
-                totalInitialPool += poolPaid;
+                totalInitialPool += poolPaid; // 本身就是 TWD
             }
         });
 
@@ -402,12 +434,23 @@
         let poolSpent = 0; let totalPersonalSpent = 0;
 
         expenseRows.forEach(row => {
-            const cost = parseFloat(row.querySelector('.e-cost').value) || 0;
+            let cost = parseFloat(row.querySelector('.e-cost').value) || 0;
+            const currency = row.querySelector('.e-currency').value;
             const payer = row.querySelector('.e-payer').value;
-            if (payer === '公費') { poolSpent += cost; } 
-            else {
+
+            // 如果是泰銖，自動乘以匯率轉換為台幣
+            if (currency === 'THB') {
+                cost = cost * rate;
+            }
+
+            if (payer === '公費') { 
+                poolSpent += cost; 
+            } else {
                 const member = members.find(m => m.name === payer);
-                if (member) { member.ownSpent += cost; totalPersonalSpent += cost; }
+                if (member) { 
+                    member.ownSpent += cost; 
+                    totalPersonalSpent += cost; 
+                }
             }
         });
 
@@ -423,19 +466,4 @@
             const balance = totalPaid - perPersonShare;
             let balanceText = (balance < 0) ? `<span class="negative">🔻 應補繳 ${Math.abs(Math.round(balance))} 元</span>` : (balance > 0) ? `<span class="positive">🎉 可退回 ${Math.round(balance)} 元</span>` : `<span>🤝 0 元 (平手)</span>`;
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td><b>${m.name}</b></td><td>${m.poolPaid} 元</td><td>${m.ownSpent} 元</td><td>${Math.round(perPersonShare)} 元</td><td>${balanceText}</td>`;
-            tbody.appendChild(tr);
-        });
-
-        document.getElementById('total-pool').textContent = Math.round(totalInitialPool);
-        document.getElementById('pool-spent').textContent = Math.round(poolSpent);
-        document.getElementById('pool-remain').textContent = Math.round(poolRemain);
-        document.getElementById('total-trip-cost').textContent = Math.round(totalTripCost);
-        document.getElementById('per-person-share').textContent = Math.round(perPersonShare);
-        document.getElementById('result-section').style.display = 'block';
-        document.getElementById('result-section').scrollIntoView({ behavior: 'smooth' });
-    }
-</script>
-
-</body>
-</html>
+            tr.innerHTML = `<td><b>${m.name}</b></td><td>${m.poolPaid} 元</td><td>${Math.round(m.ownSpent)} 元</td><td>${Math.round(perPersonShare)} 元</td><td>${balanceText}</td>`;

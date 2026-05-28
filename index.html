@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>✈️ 7日遊旅遊費用【Gist 雲端同步版】</title>
+    <title>✈️ 7日遊旅遊費用【雲端自動帶入版】</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -128,16 +128,16 @@
 <body>
 
 <div class="container">
-    <h1 style="text-align: center;">✈️ 旅遊費用分帳計算機 (GitHub Gist 雲端連動版)</h1>
+    <h1 style="text-align: center;">✈️ 旅遊費用分帳計算機 (雲端連動免Key版)</h1>
     
     <div class="config-box">
-        <h3>🔑 雲端連動設定 (已鎖定金鑰自動連線)</h3>
+        <h3>🔑 雲端連動設定 (已透過網址參數自動帶入)</h3>
         <div class="config-grid">
-            <input type="password" id="gh-token" placeholder="GitHub Token">
-            <input type="text" id="gh-gist-id" placeholder="Gist ID">
+            <input type="password" id="gh-token" placeholder="GitHub Token 將自動帶入...">
+            <input type="text" id="gh-gist-id" placeholder="Gist ID 將自動帶入...">
         </div>
         <button type="button" onclick="loadFromGist()">🔄 手動同步/重新載入</button>
-        <span id="save-msg" class="save-status">🔄 正在連線雲端空間...</span>
+        <span id="save-msg" class="save-status">🔄 正在載入網址設定...</span>
     </div>
     
     <div class="section">
@@ -186,22 +186,29 @@
     let isDataLoading = false;
 
     window.onload = async function() {
-        // === 🛠️ 請在此處填入你正確的密鑰資訊 ===
-        const myToken = "這裡填入你那串ghp_開頭的Token"; 
-        const myGistId = "08e7ca5a742bc7f86520879af8231";
-        // =======================================
+        // 從網址列自動分析讀取 ?token=xxxx&id=xxxx
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlToken = urlParams.get('token');
+        const urlGistId = urlParams.get('id');
 
-        document.getElementById('gh-token').value = myToken;
-        document.getElementById('gh-gist-id').value = myGistId;
+        // 如果網址有帶，就用網址的；如果網址沒帶，就看本機以前有沒有記住過
+        const token = urlToken || localStorage.getItem('travel_gh_token') || '';
+        const gistId = urlGistId || localStorage.getItem('travel_gist_id') || '';
 
-        // 優先使用填寫的密鑰進行初次同步
-        if (myToken && myGistId) {
+        document.getElementById('gh-token').value = token;
+        document.getElementById('gh-gist-id').value = gistId;
+
+        if (token && gistId) {
+            // 如果是從網址第一次進來，幫忙記在 localStorage，以後就算把網址後面的字刪掉也打得開
+            localStorage.setItem('travel_gh_token', token);
+            localStorage.setItem('travel_gist_id', gistId);
             await loadFromGist();
         } else {
             renderData({
                 members: [{ name: '成員A', pool: 3000 }, { name: '成員B', pool: 3000 }],
                 expenses: [{ date: new Date().toISOString().split('T')[0], item: '第一天晚餐', cost: 1200, payer: '公費' }]
             });
+            updateStatus("⚙️ 請使用包含金鑰的專屬網址開啟，或手動填入上方欄位。");
         }
 
         // 監聽變動自動存檔
@@ -215,10 +222,7 @@
         const token = document.getElementById('gh-token').value.trim();
         const gistId = document.getElementById('gh-gist-id').value.trim();
         
-        if (!token || !gistId) {
-            alert("請檢查 GitHub Token 和 Gist ID 是否填寫！");
-            return;
-        }
+        if (!token || !gistId) return;
 
         isDataLoading = true;
         updateStatus("🔄 正在從 GitHub 雲端下載最新帳目...");
@@ -238,12 +242,11 @@
                 updateStatus("ℹ️ Gist 中無資料，將於您輸入後建立 data.json");
             }
         } catch (e) {
-            updateStatus("❌ 讀取失敗，請檢查 Token 與 Gist ID 是否正確。");
+            updateStatus("❌ 讀取失敗，請檢查網址參數或金鑰權限。");
         }
         isDataLoading = false;
     }
 
-    // 防抖動調整為 1.5 秒，打完字停頓一下才會觸發，防止頻繁連線失敗
     let saveTimeout;
     function debounceAutoSave() {
         if(isDataLoading) return;

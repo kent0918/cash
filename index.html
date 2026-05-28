@@ -186,6 +186,9 @@
     let isDataLoading = false;
 
     window.onload = async function() {
+        // 在 window.onload 的最開頭，直接把你的密鑰寫進去鎖定：
+document.getElementById('gh-token').value = "這裡填入你那串ghp_開頭的Token";
+document.getElementById('gh-gist-id').value = "08e7ca5a742bc7f86520879af8231";
         // 從本機讀取之前存好的 Token 和 Gist ID
         document.getElementById('gh-token').value = localStorage.getItem('travel_gh_token') || '';
         document.getElementById('gh-gist-id').value = localStorage.getItem('travel_gist_id') || '';

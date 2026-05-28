@@ -243,3 +243,258 @@
     async function loadFromGist() {
         const token = document.getElementById('gh-token').value.trim();
         const gistId = document.getElementById('gh-gist-id').value.trim();
+        
+        if (!token || !gistId) return;
+
+        isDataLoading = true;
+        updateStatus("🔄 正在從 GitHub 雲端下載最新帳目...");
+
+        try {
+            const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+                headers: { "Authorization": `token ${token}` },
+                cache: "no-store"
+            });
+            const gistData = await response.json();
+            
+            if (gistData.files && gistData.files["data.json"]) {
+                const content = JSON.parse(gistData.files["data.json"].content);
+                renderData(content);
+                updateStatus("☁️ 雲端同步成功 (已是最新狀態)");
+            } else {
+                updateStatus("ℹ️ Gist 中無資料，將於您輸入後建立 data.json");
+            }
+        } catch (e) {
+            updateStatus("❌ 讀取失敗，請檢查網址參數或金鑰權限。");
+        }
+        isDataLoading = false;
+    }
+
+    let saveTimeout;
+    function debounceAutoSave() {
+        if(isDataLoading) return;
+        updateStatus("✍️ 偵測到修改，暫存中...");
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(saveToGist, 1500);
+    }
+
+    // 上傳到 GitHub Gist
+    async function saveToGist() {
+        const token = document.getElementById('gh-token').value.trim();
+        const gistId = document.getElementById('gh-gist-id').value.trim();
+        
+        if (!token || !gistId || isDataLoading) return;
+
+        updateStatus("📤 正在自動同步到 GitHub 雲端...");
+
+        const rate = parseFloat(document.getElementById('thb-rate').value) || 0.92;
+
+        const membersData = [];
+        document.querySelectorAll('#member-container .member-row').forEach(row => {
+            const name = row.querySelector('.m-name').value.trim();
+            const pool = row.querySelector('.m-pool').value;
+            const poolCurrency = row.querySelector('.m-pool-currency').value;
+            if(name) membersData.push({ name, pool: parseFloat(pool) || 0, poolCurrency });
+        });
+
+        const expensesData = [];
+        document.querySelectorAll('#expense-container .expense-row').forEach(row => {
+            const date = row.querySelector('.e-date').value;
+            const item = row.querySelector('.e-item').value;
+            const cost = row.querySelector('.e-cost').value;
+            const currency = row.querySelector('.e-currency').value;
+            const payer = row.querySelector('.e-payer').value;
+            expensesData.push({ date, item, cost: parseFloat(cost) || 0, currency, payer });
+        });
+
+        const bodyData = {
+            files: {
+                "data.json": {
+                    content: JSON.stringify({ rate, members: membersData, expenses: expensesData }, null, 2)
+                }
+            }
+        };
+
+        try {
+            const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+                method: "PATCH",
+                headers: {
+                    "Authorization": `token ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(bodyData)
+            });
+            if(res.ok) {
+                updateStatus("☁️ 雲端已同步 (最新)");
+            } else {
+                updateStatus("❌ 自動同步失敗 (權限錯誤)");
+            }
+        } catch (e) {
+            updateStatus("❌ 自動同步失敗 (網路錯誤)");
+        }
+    }
+
+    function renderData(data) {
+        document.getElementById('member-container').innerHTML = '';
+        document.getElementById('expense-container').innerHTML = '';
+        
+        if(data && data.rate !== undefined) {
+            document.getElementById('thb-rate').value = data.rate;
+        } else {
+            document.getElementById('thb-rate').value = 0.92;
+        }
+
+        if(data && data.members && data.members.length > 0) {
+            data.members.forEach(m => addMemberRow(m.name, m.pool, m.poolCurrency || 'TWD'));
+        } else { addMemberRow('', 0, 'TWD'); }
+        
+        if(data && data.expenses && data.expenses.length > 0) {
+            data.expenses.forEach(e => addExpenseRow(e.date, e.item, e.cost, e.currency || 'THB', e.payer));
+        } else { addExpenseRow('', '', 0, 'THB', '公費'); }
+        updatePayerOptions();
+    }
+
+    function updateStatus(text) { document.getElementById('save-msg').textContent = text; }
+
+    function getMemberList() {
+        const members = [];
+        document.querySelectorAll('#member-container .member-row').forEach(row => {
+            const name = row.querySelector('.m-name').value.trim();
+            if(name) members.push(name);
+        });
+        return members;
+    }
+
+    function updatePayerOptions() {
+        const members = getMemberList();
+        document.querySelectorAll('.payer-select').forEach(select => {
+            const currentValue = select.value;
+            select.innerHTML = '<option value="公費">👛 公費支付</option>';
+            members.forEach(member => {
+                const opt = document.createElement('option');
+                opt.value = member;
+                opt.textContent = `👤 ${member} 代墊`;
+                select.appendChild(opt);
+            });
+            if (members.includes(currentValue) || currentValue === '公費') {
+                select.value = currentValue;
+            }
+        });
+    }
+
+    function addMemberRow(name = '', pool = 0, poolCurrency = 'TWD') {
+        const container = document.getElementById('member-container');
+        const div = document.createElement('div');
+        div.className = 'member-row';
+        div.innerHTML = `
+            <input type="text" placeholder="成員姓名" value="${name}" class="m-name">
+            <input type="number" placeholder="已繳公費" value="${pool}" min="0" class="m-pool">
+            <select class="m-pool-currency">
+                <option value="TWD" ${poolCurrency === 'TWD' ? 'selected' : ''}>🇹🇼 TWD</option>
+                <option value="THB" ${poolCurrency === 'THB' ? 'selected' : ''}>🇹🇭 THB</option>
+            </select>
+            <button type="button" class="btn-danger" onclick="this.parentElement.remove(); updatePayerOptions(); debounceAutoSave();">刪除</button>
+        `;
+        container.appendChild(div);
+        div.querySelector('.m-name').addEventListener('input', () => {
+            updatePayerOptions();
+            debounceAutoSave();
+        });
+        updatePayerOptions();
+    }
+
+    function addExpenseRow(date = '', item = '', cost = 0, currency = 'THB', payer = '公費') {
+        const container = document.getElementById('expense-container');
+        const div = document.createElement('div');
+        div.className = 'expense-row';
+        div.innerHTML = `
+            <input type="date" value="${date}" class="e-date">
+            <input type="text" placeholder="項目 (如: 泰式按摩、車資)" value="${item}" class="e-item">
+            <input type="number" placeholder="金額" value="${cost}" min="0" class="e-cost">
+            <select class="e-currency">
+                <option value="THB" ${currency === 'THB' ? 'selected' : ''}>🇹🇭 THB</option>
+                <option value="TWD" ${currency === 'TWD' ? 'selected' : ''}>🇹🇼 TWD</option>
+            </select>
+            <select class="payer-select e-payer">
+                <option value="公費">👛 公費支付</option>
+            </select>
+            <button type="button" class="btn-danger" onclick="this.parentElement.remove(); debounceAutoSave();">刪除</button>
+        `;
+        container.appendChild(div);
+        updatePayerOptions();
+        div.querySelector('.e-payer').value = payer;
+    }
+
+    function calculateExpenses() {
+        const memberRows = document.querySelectorAll('#member-container .member-row');
+        const expenseRows = document.querySelectorAll('#expense-container .expense-row');
+        const rate = parseFloat(document.getElementById('thb-rate').value) || 0.92;
+
+        let members = []; let totalInitialPool = 0;
+        
+        memberRows.forEach(row => {
+            const name = row.querySelector('.m-name').value.trim();
+            let poolPaid = parseFloat(row.querySelector('.m-pool').value) || 0;
+            const poolCurrency = row.querySelector('.m-pool-currency').value;
+
+            // 【新邏輯】如果公費是繳交泰銖，自動換算回台幣
+            if (poolCurrency === 'THB') {
+                poolPaid = poolPaid * rate;
+            }
+
+            if (name) {
+                members.push({ name: name, poolPaid: poolPaid, ownSpent: 0, finalBalance: 0 });
+                totalInitialPool += poolPaid;
+            }
+        });
+
+        if (members.length === 0) { alert('請至少輸入一位成員！'); return; }
+        let poolSpent = 0; let totalPersonalSpent = 0;
+
+        expenseRows.forEach(row => {
+            let cost = parseFloat(row.querySelector('.e-cost').value) || 0;
+            const currency = row.querySelector('.e-currency').value;
+            const payer = row.querySelector('.e-payer').value;
+
+            if (currency === 'THB') {
+                cost = cost * rate;
+            }
+
+            if (payer === '公費') { 
+                poolSpent += cost; 
+            } else {
+                const member = members.find(m => m.name === payer);
+                if (member) { 
+                    member.ownSpent += cost; 
+                    totalPersonalSpent += cost; 
+                }
+            }
+        });
+
+        const totalTripCost = poolSpent + totalPersonalSpent;
+        const perPersonShare = totalTripCost / members.length;
+        const poolRemain = totalInitialPool - poolSpent;
+
+        const tbody = document.getElementById('result-table-body');
+        tbody.innerHTML = '';
+
+        members.forEach(m => {
+            const totalPaid = m.poolPaid + m.ownSpent;
+            const balance = totalPaid - perPersonShare;
+            let balanceText = (balance < 0) ? `<span class="negative">🔻 應補繳 ${Math.abs(Math.round(balance))} 元</span>` : (balance > 0) ? `<span class="positive">🎉 可退回 ${Math.round(balance)} 元</span>` : `<span>🤝 0 元 (平手)</span>`;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td><b>${m.name}</b></td><td>${Math.round(m.poolPaid)} 元</td><td>${Math.round(m.ownSpent)} 元</td><td>${Math.round(perPersonShare)} 元</td><td>${balanceText}</td>`;
+            tbody.appendChild(tr);
+        });
+
+        document.getElementById('total-pool').textContent = Math.round(totalInitialPool);
+        document.getElementById('pool-spent').textContent = Math.round(poolSpent);
+        document.getElementById('pool-remain').textContent = Math.round(poolRemain);
+        document.getElementById('total-trip-cost').textContent = Math.round(totalTripCost);
+        document.getElementById('per-person-share').textContent = Math.round(perPersonShare);
+        document.getElementById('result-section').style.display = 'block';
+        document.getElementById('result-section').scrollIntoView({ behavior: 'smooth' });
+    }
+</script>
+
+</body>
+</html>

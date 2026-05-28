@@ -337,18 +337,29 @@
         document.getElementById('member-container').innerHTML = '';
         document.getElementById('expense-container').innerHTML = '';
         
-        if(data && data.rate !== undefined) {
-            document.getElementById('thb-rate').value = data.rate;
+        // 【超級加強防呆】確保 data 物件存在，否則給予預設空物件
+        const safeData = data || {};
+
+        if(safeData.rate !== undefined) {
+            document.getElementById('thb-rate').value = safeData.rate;
         } else {
             document.getElementById('thb-rate').value = 0.92;
         }
 
-        if(data && data.members && data.members.length > 0) {
-            data.members.forEach(m => addMemberRow(m.name, m.pool, m.poolCurrency || 'TWD'));
+        if(safeData.members && Array.isArray(safeData.members) && safeData.members.length > 0) {
+            safeData.members.forEach(m => {
+                if (m) {
+                    addMemberRow(m.name || '', m.pool || 0, m.poolCurrency || 'TWD');
+                }
+            });
         } else { addMemberRow('', 0, 'TWD'); }
         
-        if(data && data.expenses && data.expenses.length > 0) {
-            data.expenses.forEach(e => addExpenseRow(e.date, e.item, e.cost, e.currency || 'THB', e.payer));
+        if(safeData.expenses && Array.isArray(safeData.expenses) && safeData.expenses.length > 0) {
+            safeData.expenses.forEach(e => {
+                if (e) {
+                    addExpenseRow(e.date || '', e.item || '', e.cost || 0, e.currency || 'THB', e.payer || '公費');
+                }
+            });
         } else { addExpenseRow('', '', 0, 'THB', '公費'); }
         updatePayerOptions();
     }
@@ -436,7 +447,6 @@
             let poolPaid = parseFloat(row.querySelector('.m-pool').value) || 0;
             const poolCurrency = row.querySelector('.m-pool-currency').value;
 
-            // 【新邏輯】如果公費是繳交泰銖，自動換算回台幣
             if (poolCurrency === 'THB') {
                 poolPaid = poolPaid * rate;
             }

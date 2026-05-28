@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>✈️ 7日遊旅遊費用【雲端跨裝置同步版】</title>
+    <title>✈️ 7日遊旅遊費用【Gist 雲端同步版】</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -36,16 +36,18 @@
             border-left: 4px solid #f59f00;
             border-radius: 4px;
         }
-        .cloud-box {
+        .config-box {
             background: #e6f7ff;
             border: 1px solid #91d5ff;
             padding: 15px;
             border-radius: 8px;
             margin-bottom: 20px;
-            display: flex;
-            align-items: center;
+        }
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 10px;
-            flex-wrap: wrap;
+            margin-bottom: 10px;
         }
         input, select {
             padding: 10px;
@@ -69,8 +71,6 @@
         button.btn-danger:hover { background-color: #c0392b; }
         button.btn-success { background-color: #2ecc71; width: 100%; padding: 15px; font-size: 18px; margin-top: 15px;}
         button.btn-success:hover { background-color: #27ae60; }
-        button.btn-warning { background-color: #f39c12; color: white;}
-        button.btn-warning:hover { background-color: #d35400; }
         
         .member-row {
             display: flex;
@@ -120,32 +120,33 @@
             color: #27ae60;
             font-size: 14px;
             font-weight: bold;
+            display: inline-block;
+            margin-top: 5px;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1 style="text-align: center;">✈️ 旅遊費用分帳計算機 (跨裝置雲端同步版)</h1>
+    <h1 style="text-align: center;">✈️ 旅遊費用分帳計算機 (GitHub Gist 雲端連動版)</h1>
     
-    <!-- 雲端同步控制區塊 -->
-    <div class="cloud-box">
-        🔑 <b>您的專屬雲端同步代碼：</b>
-        <input type="text" id="cloud-id" placeholder="正在取得代碼..." style="width: 220px; font-weight: bold; text-align: center; background: #fff;" readonly>
-        <button type="button" onclick="copyCloudId()">📋 複製代碼</button>
-        <button type="button" class="btn-warning" onclick="connectManualId()">🔗 輸入代碼同步</button>
-        <span id="save-msg" class="save-status">☁️ 雲端已同步</span>
+    <div class="config-box">
+        <h3>🔑 雲端連動設定 (輸入後會自動記住)</h3>
+        <div class="config-grid">
+            <input type="password" id="gh-token" placeholder="貼上您的 GitHub Token (classic)">
+            <input type="text" id="gh-gist-id" placeholder="貼上您的 Gist ID (網址最後那一串)">
+        </div>
+        <button type="button" onclick="loadFromGist()">🔄 手動同步/重新載入</button>
+        <span id="save-msg" class="save-status">⚙️ 首次使用請先填寫上方設定</span>
     </div>
     
-    <!-- 1. 人員名單與初始公費 -->
     <div class="section">
         <h2>1. 朋友成員與公費設定</h2>
-        <p class="tip">請輸入成員名字與預繳公費。此版本支援手機與電腦即時同步！</p>
+        <p class="tip">請輸入成員名字與預繳公費。打字後，系統會自動在背景存檔到你的 Gist 裡！</p>
         <div id="member-container"></div>
         <button type="button" onclick="addMemberRow('', 0)">➕ 新增成員</button>
     </div>
 
-    <!-- 2. 支出項目 -->
     <div class="section">
         <h2>2. 7日旅遊支出明細</h2>
         <p class="tip">記錄每一天的開銷。您可以自由選擇日期、輸入項目與金額，並選擇是由公費還是某人墊付。</p>
@@ -153,10 +154,8 @@
         <button type="button" onclick="addExpenseRow('', '', 0, '公費')">➕ 新增支出項目</button>
     </div>
 
-    <!-- 3. 開始計算 -->
     <button type="button" class="btn-success" onclick="calculateExpenses()">📊 開始計算分帳結果</button>
 
-    <!-- 4. 結果顯示 -->
     <div id="result-section" class="section" style="display:none; margin-top: 30px;">
         <h2>📝 計算結果明細</h2>
         <div class="summary-grid">
@@ -184,105 +183,84 @@
 </div>
 
 <script>
-    // 使用免註冊的公共 json 快取 API
-    const API_BASE = "https://jsonblob.com/api/jsonBlob";
-    let cloudId = ""; 
     let isDataLoading = false;
 
     window.onload = async function() {
-        // 先檢查網址有沒有帶代碼，或是本機有沒有存過代碼
-        const urlParams = new URLSearchParams(window.location.search);
-        let savedId = urlParams.get('id') || localStorage.getItem('travel_cloud_id');
+        // 從本機讀取之前存好的 Token 和 Gist ID
+        document.getElementById('gh-token').value = localStorage.getItem('travel_gh_token') || '';
+        document.getElementById('gh-gist-id').value = localStorage.getItem('travel_gist_id') || '';
 
-        if (savedId) {
-            cloudId = savedId;
-            document.getElementById('cloud-id').value = cloudId;
-            await loadFromCloud();
+        if (localStorage.getItem('travel_gh_token') && localStorage.getItem('travel_gist_id')) {
+            await loadFromGist();
         } else {
-            // 沒有代碼，代表是第一次用，自動去雲端抓一個新的儲存箱
-            await createCloudBox();
+            // 沒有的話載入一組預設範例
+            renderData({
+                members: [{ name: '成員A', pool: 3000 }, { name: '成員B', pool: 3000 }],
+                expenses: [{ date: new Date().toISOString().split('T')[0], item: '第一天晚餐', cost: 1200, payer: '公費' }]
+            });
         }
 
-        // 監聽變動，自動同步到雲端
+        // 監聽變動自動存檔
         document.getElementById('member-container').addEventListener('input', debounceAutoSave);
         document.getElementById('expense-container').addEventListener('input', debounceAutoSave);
         document.getElementById('expense-container').addEventListener('change', debounceAutoSave);
     };
 
-    // 建立新的雲端空間
-    async function createCloudBox() {
-        try {
-            const defaultData = {
-                members: [{ name: '成員A', pool: 3000 }, { name: '成員B', pool: 3000 }],
-                expenses: [{ date: new Date().toISOString().split('T')[0], item: '第一天晚餐', cost: 1200, payer: '公費' }]
-            };
-            const response = await fetch(API_BASE, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(defaultData)
-            });
-            // 從 Response Header 拿到這個箱子的專屬 ID
-            const locationHeader = response.headers.get('Location');
-            cloudId = locationHeader.substring(locationHeader.lastIndexOf('/') + 1);
-            
-            document.getElementById('cloud-id').value = cloudId;
-            localStorage.setItem('travel_cloud_id', cloudId);
-            renderData(defaultData);
-        } catch (e) {
-            alert("建立雲端同步失敗，改用離線模式");
-            renderData({ members: [], expenses: [] });
+    // 從 Gist 抓取最新資料
+    async function loadFromGist() {
+        const token = document.getElementById('gh-token').value.trim();
+        const gistId = document.getElementById('gh-gist-id').value.trim();
+        
+        if (!token || !gistId) {
+            alert("請先輸入 GitHub Token 和 Gist ID！");
+            return;
         }
-    }
 
-    // 從雲端下載資料
-    async function loadFromCloud() {
-        if(!cloudId) return;
+        // 自動記錄，下次不用重新輸入
+        localStorage.setItem('travel_gh_token', token);
+        localStorage.setItem('travel_gist_id', gistId);
+
         isDataLoading = true;
-        updateStatus("🔄 正在從雲端更新資料...");
+        updateStatus("🔄 正在從 GitHub 雲端下載最新帳目...");
+
         try {
-            const response = await fetch(`${API_BASE}/${cloudId}`);
-            const data = await response.json();
-            renderData(data);
-            updateStatus("☁️ 雲端已同步 (最新)");
+            const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+                headers: { "Authorization": `token ${token}` }
+            });
+            const gistData = await response.json();
+            
+            // 讀取 gist 裡面的 data.json
+            if (gistData.files && gistData.files["data.json"]) {
+                const content = JSON.parse(gistData.files["data.json"].content);
+                renderData(content);
+                updateStatus("☁️ 雲端同步成功 (已是最新狀態)");
+            } else {
+                updateStatus("ℹ️ Gist 中無資料，將於您輸入後建立 data.json");
+            }
         } catch (e) {
-            updateStatus("❌ 雲端讀取失敗，請確認代碼");
+            updateStatus("❌ 讀取失敗，請檢查 Token 與 Gist ID 是否正確。");
         }
         isDataLoading = false;
     }
 
-    // 將資料渲染到畫面上
-    function renderData(data) {
-        document.getElementById('member-container').innerHTML = '';
-        document.getElementById('expense-container').innerHTML = '';
-        
-        if(data.members && data.members.length > 0) {
-            data.members.forEach(m => addMemberRow(m.name, m.pool));
-        } else {
-            addMemberRow('', 0);
-        }
-        
-        if(data.expenses && data.expenses.length > 0) {
-            data.expenses.forEach(e => addExpenseRow(e.date, e.item, e.cost, e.payer));
-        } else {
-            addExpenseRow('', '', 0, '公費');
-        }
-        updatePayerOptions();
-    }
-
-    // 防抖動設計：避免每打一個字就一直發送網路請求，等停下 0.8 秒後才存檔
+    // 防抖動，避免每打一個字就上傳一次網路
     let saveTimeout;
     function debounceAutoSave() {
         if(isDataLoading) return;
-        updateStatus("✍️ 偵測到修改，準備上傳...");
+        updateStatus("✍️ 偵測到修改，暫存中...");
         clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(saveToCloud, 800);
+        saveTimeout = setTimeout(saveToGist, 1000);
     }
 
-    // 上傳存檔到雲端
-    async function saveToCloud() {
-        if(!cloudId) return;
-        updateStatus("📤 正在同步到雲端...");
+    // 上傳到 GitHub Gist
+    async function saveToGist() {
+        const token = document.getElementById('gh-token').value.trim();
+        const gistId = document.getElementById('gh-gist-id').value.trim();
         
+        if (!token || !gistId) return; // 沒設定就不觸發雲端
+
+        updateStatus("📤 正在自動同步到 GitHub 雲端...");
+
         const membersData = [];
         document.querySelectorAll('#member-container .member-row').forEach(row => {
             const name = row.querySelector('.m-name').value.trim();
@@ -299,40 +277,44 @@
             expensesData.push({ date, item, cost: parseFloat(cost) || 0, payer });
         });
 
+        const bodyData = {
+            files: {
+                "data.json": {
+                    content: JSON.stringify({ members: membersData, expenses: expensesData }, null, 2)
+                }
+            }
+        };
+
         try {
-            await fetch(`${API_BASE}/${cloudId}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ members: membersData, expenses: expensesData })
+            await fetch(`https://api.github.com/gists/${gistId}`, {
+                method: "PATCH",
+                headers: {
+                    "Authorization": `token ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(bodyData)
             });
             updateStatus("☁️ 雲端已同步 (最新)");
         } catch (e) {
-            updateStatus("❌ 雲端同步失敗");
+            updateStatus("❌ 自動同步失敗");
         }
     }
 
-    // 手動輸入代碼連結其他裝置
-    async function connectManualId() {
-        const inputId = prompt("請輸入另一台裝置顯示的【雲端同步代碼】:");
-        if (inputId && inputId.trim()) {
-            cloudId = inputId.trim();
-            document.getElementById('cloud-id').value = cloudId;
-            localStorage.setItem('travel_cloud_id', cloudId);
-            // 嘗試重新整理網址列，方便以後直接進來
-            const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?id=' + cloudId;
-            window.history.pushState({path:newUrl},'',newUrl);
-            await loadFromCloud();
-        }
+    function renderData(data) {
+        document.getElementById('member-container').innerHTML = '';
+        document.getElementById('expense-container').innerHTML = '';
+        
+        if(data.members && data.members.length > 0) {
+            data.members.forEach(m => addMemberRow(m.name, m.pool));
+        } else { addMemberRow('', 0); }
+        
+        if(data.expenses && data.expenses.length > 0) {
+            data.expenses.forEach(e => addExpenseRow(e.date, e.item, e.cost, e.payer));
+        } else { addExpenseRow('', '', 0, '公費'); }
+        updatePayerOptions();
     }
 
-    function updateStatus(text) {
-        document.getElementById('save-msg').textContent = text;
-    }
-
-    function copyCloudId() {
-        navigator.clipboard.writeText(cloudId);
-        alert("代碼已複製！可以傳給手機或其他朋友了。");
-    }
+    function updateStatus(text) { document.getElementById('save-msg').textContent = text; }
 
     function getMemberList() {
         const members = [];
@@ -396,14 +378,10 @@
     }
 
     function calculateExpenses() {
-        // 先手動觸發一次最新同步，確保計算的是雲端最新資料
-        saveToCloud();
-        
+        saveToGist();
         const memberRows = document.querySelectorAll('#member-container .member-row');
         const expenseRows = document.querySelectorAll('#expense-container .expense-row');
-        
-        let members = [];
-        let totalInitialPool = 0;
+        let members = []; let totalInitialPool = 0;
         
         memberRows.forEach(row => {
             const name = row.querySelector('.m-name').value.trim();
@@ -415,7 +393,6 @@
         });
 
         if (members.length === 0) { alert('請至少輸入一位成員！'); return; }
-
         let poolSpent = 0; let totalPersonalSpent = 0;
 
         expenseRows.forEach(row => {
@@ -439,7 +416,6 @@
             const totalPaid = m.poolPaid + m.ownSpent;
             const balance = totalPaid - perPersonShare;
             let balanceText = (balance < 0) ? `<span class="negative">🔻 應補繳 ${Math.abs(Math.round(balance))} 元</span>` : (balance > 0) ? `<span class="positive">🎉 可退回 ${Math.round(balance)} 元</span>` : `<span>🤝 0 元 (平手)</span>`;
-
             const tr = document.createElement('tr');
             tr.innerHTML = `<td><b>${m.name}</b></td><td>${m.poolPaid} 元</td><td>${m.ownSpent} 元</td><td>${Math.round(perPersonShare)} 元</td><td>${balanceText}</td>`;
             tbody.appendChild(tr);
@@ -450,7 +426,6 @@
         document.getElementById('pool-remain').textContent = Math.round(poolRemain);
         document.getElementById('total-trip-cost').textContent = Math.round(totalTripCost);
         document.getElementById('per-person-share').textContent = Math.round(perPersonShare);
-
         document.getElementById('result-section').style.display = 'block';
         document.getElementById('result-section').scrollIntoView({ behavior: 'smooth' });
     }
